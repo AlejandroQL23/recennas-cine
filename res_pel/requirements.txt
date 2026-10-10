@@ -1,0 +1,9 @@
+# Etapa 1 · Traducción (notebook 01)
+pandas
+torch
+transformers
+sentencepiece
+sacremoses
+nltk
+tqdm
+ipykernel
