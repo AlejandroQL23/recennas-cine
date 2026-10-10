@@ -11,6 +11,7 @@ localmente (sin claves de API).
   ejecutarlo continúa donde quedó en lugar de empezar de cero.
 """
 
+import html
 import re
 import time
 from pathlib import Path
@@ -194,3 +195,112 @@ def traducir_corpus(df, traductor, ruta_parcial, col_id="id",
         minutos = (time.time() - inicio) / 60
         print(f"{len(pendientes)} reseñas traducidas en {minutos:.1f} min")
     return pd.read_csv(ruta_parcial)
+
+
+# ---------------------------------------------------------------------------
+# Etapa 2 · Limpieza
+# ---------------------------------------------------------------------------
+
+# Palabras funcionales muy frecuentes de cada idioma. Sirven para detectar
+# traducciones fallidas: un texto en español casi no contiene las inglesas.
+PALABRAS_EN = set("the and is of to it this that was with but for you are "
+                  "have not be movie film".split())
+PALABRAS_ES = set("el la de que y en los las un una es por con no se lo "
+                  "película".split())
+
+# Puntos de corte de la valoración (sección 5.2 del enunciado).
+VALORACIONES = ["negativa", "intermedia", "positiva"]
+
+
+def limpiar_texto(texto):
+    """
+    Normaliza un texto sin alterar su contenido lingüístico.
+
+    * Convierte entidades HTML (``&amp;`` -> ``&``) y elimina etiquetas HTML
+      (``<br />``).
+    * Elimina secuencias de 4 o más símbolos sueltos separados por espacios
+      (``* * * * *``). El traductor las genera a veces al encontrar
+      calificaciones con asteriscos (``*****``) y llega a repetir el símbolo
+      cientos de veces; no forman parte de la reseña original.
+    * Colapsa espacios repetidos y saltos de línea.
+
+    No convierte a minúsculas ni quita tildes o puntuación: spaCy los
+    necesita para etiquetar correctamente.
+    """
+    if not isinstance(texto, str):
+        return ""
+    texto = html.unescape(texto)
+    texto = re.sub(r"<[^>]+>", " ", texto)
+    texto = re.sub(r"(?<!\S)[^\w\s](?:\s+[^\w\s]){3,}(?!\S)", " ", texto)
+    texto = re.sub(r"\s+", " ", texto)
+    return texto.strip()
+
+
+def proporcion_ingles(texto):
+    """
+    Proporción de palabras funcionales inglesas sobre el total de palabras
+    funcionales (inglesas + españolas) encontradas en el texto.
+
+    Vale cerca de 0 en un texto bien traducido y cerca de 1 en uno que quedó
+    en inglés. Los títulos de películas sin traducir ("The Land Before Time")
+    solo la suben ligeramente.
+    """
+    palabras = re.findall(r"[a-záéíóúüñ]+", str(texto).lower())
+    en = sum(p in PALABRAS_EN for p in palabras)
+    es = sum(p in PALABRAS_ES for p in palabras)
+    return en / (en + es) if en + es else 1.0
+
+
+def asignar_valoracion(calificacion):
+    """
+    Agrupa la calificación de 1 a 10 en tres valoraciones:
+    negativa (1-4), intermedia (5-6) y positiva (7-10).
+    """
+    return pd.cut(calificacion, bins=[0, 4, 6, 10], labels=VALORACIONES)
+
+
+def limpiar_corpus(df, col_en="texto_en", col_es="texto_es",
+                   umbral_ingles=0.5):
+    """
+    Aplica la limpieza de la etapa 2 y devuelve ``(df_limpio, bitacora)``.
+
+    Pasos, en orden:
+
+    1. Normalización de ``col_en`` y ``col_es`` con :func:`limpiar_texto`.
+    2. Eliminación de reseñas cuyo texto en español quedó vacío.
+    3. Eliminación de duplicados: mismo texto en español, o misma película
+       reseñada dos veces por el mismo usuario.
+    4. Eliminación de traducciones fallidas: textos cuya
+       :func:`proporcion_ingles` supera ``umbral_ingles`` (quedaron en
+       inglés). Las traducciones con errores parciales NO se eliminan: el
+       enunciado pide analizarlas tal como las produce el modelo.
+    5. Columnas nuevas: ``n_palabras_es`` y ``valoracion``.
+
+    ``bitacora`` es una tabla con las reseñas eliminadas en cada paso, para
+    documentar las decisiones de limpieza en el README.
+    """
+    df = df.copy()
+    bitacora = []
+
+    def registrar(paso, mascara_eliminar):
+        nonlocal df
+        bitacora.append({"paso": paso,
+                         "eliminadas": int(mascara_eliminar.sum()),
+                         "ids": df.loc[mascara_eliminar, "id"].tolist()})
+        df = df[~mascara_eliminar]
+
+    df[col_en] = df[col_en].map(limpiar_texto)
+    df[col_es] = df[col_es].map(limpiar_texto)
+
+    registrar("Texto en español vacío", df[col_es].str.len() == 0)
+    registrar("Texto en español duplicado", df.duplicated(col_es))
+    registrar("Misma película y usuario",
+              df.duplicated(["movie_id", "user_id"]))
+    registrar("Traducción fallida (quedó en inglés)",
+              df[col_es].map(proporcion_ingles) > umbral_ingles)
+
+    df["n_palabras_es"] = df[col_es].str.split().str.len()
+    df["valoracion"] = asignar_valoracion(df["calificacion"])
+
+    bitacora = pd.DataFrame(bitacora)
+    return df.reset_index(drop=True), bitacora
