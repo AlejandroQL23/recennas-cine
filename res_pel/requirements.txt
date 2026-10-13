@@ -7,3 +7,11 @@ sacremoses
 nltk
 tqdm
 ipykernel
+
+# Etapa 3 · POS Tagging (notebook 02)
+# El modelo de español se instala aparte: python -m spacy download es_core_news_md
+spacy
+matplotlib
+
+# Etapa 4 · Análisis (notebook 03): pruebas estadísticas
+scipy
