@@ -1,306 +1,146 @@
 """
-Funciones reutilizables del pipeline de reseñas de cine.
+POS Tagging con spaCy y NLTK.
 
-Etapa 1 · Traducción automática inglés -> español
---------------------------------------------------
-Se usa el modelo MarianMT ``Helsinki-NLP/opus-mt-en-es``: es gratuito, corre
-localmente (sin claves de API).
+* spaCy (``es_core_news_md``): etiquetado del corpus por lotes, con lema.
+* NLTK: etiquetador de n-gramas entrenado con el corpus cess_esp.
 
-* La traducción del corpus completo tarda horas en CPU, así que se guarda un
-  archivo parcial cada pocas reseñas. Si el proceso se interrumpe, al volver a
-  ejecutarlo continúa donde quedó en lugar de empezar de cero.
 """
-
-import html
-import re
-import time
-from pathlib import Path
 
 import pandas as pd
 
-MODELO_TRADUCCION = "Helsinki-NLP/opus-mt-en-es"
-
-
-# ---------------------------------------------------------------------------
-# Preparación del texto en inglés
-# ---------------------------------------------------------------------------
-
-def asegurar_recursos_nltk():
-    """Descarga (solo la primera vez) el segmentador de oraciones de NLTK."""
-    import nltk
-
-    for recurso in ("punkt", "punkt_tab"):
-        try:
-            nltk.data.find(f"tokenizers/{recurso}")
-        except LookupError:
-            nltk.download(recurso, quiet=True)
-
-
-def preparar_texto_en(texto):
-    """
-    Normaliza el texto en inglés antes de dividirlo en oraciones.
-
-    * Elimina etiquetas HTML (por ejemplo ``<br />``).
-    * Inserta un espacio cuando una oración termina pegada a la siguiente
-      (``"impression.This film"`` -> ``"impression. This film"``).
-    * Colapsa los espacios repetidos.
-
-    """
-    if not isinstance(texto, str):
-        return ""
-    texto = re.sub(r"<[^>]+>", " ", texto)
-    texto = re.sub(r"([.!?])([A-Z])", r"\1 \2", texto)
-    texto = re.sub(r"\s+", " ", texto)
-    return texto.strip()
-
-
-def dividir_oraciones(texto, max_palabras=100):
-    """
-    Divide una reseña en oraciones aptas para el traductor.
-
-    Usa ``nltk.sent_tokenize`` y, si alguna "oración" sigue siendo muy larga
-    (reseñas sin puntuación), la corta en trozos de ``max_palabras`` palabras
-    para que el modelo no la trunque y se pierda texto.
-    """
-    from nltk.tokenize import sent_tokenize
-
-    oraciones = []
-    for oracion in sent_tokenize(preparar_texto_en(texto), language="english"):
-        palabras = oracion.split()
-        if len(palabras) <= max_palabras:
-            oraciones.append(oracion)
-        else:
-            for i in range(0, len(palabras), max_palabras):
-                oraciones.append(" ".join(palabras[i:i + max_palabras]))
-    return oraciones
-
+from traduccion_limpieza import asegurar_recursos_nltk
 
 # ---------------------------------------------------------------------------
-# Modelo de traducción
-# ---------------------------------------------------------------------------
+# Etapa 3 · POS Tagging
 
-def cargar_traductor(modelo=MODELO_TRADUCCION, dispositivo=None):
+MODELO_SPACY = "es_core_news_md"
+
+
+def cargar_spacy(modelo=MODELO_SPACY):
     """
-    Devuelve un diccionario con ``tok``, ``modelo`` y ``dispositivo``
+    Carga el modelo de spaCy para español sin el reconocimiento de entidades
+    (``ner``), que no se usa y así el etiquetado es más rápido.
     """
-    import torch
-    from transformers import MarianMTModel, MarianTokenizer
+    import spacy
 
-    if dispositivo is None:
-        dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
-    tok = MarianTokenizer.from_pretrained(modelo)
-    mt = MarianMTModel.from_pretrained(modelo).to(dispositivo)
-    mt.eval()
-    return {"tok": tok, "modelo": mt, "dispositivo": dispositivo}
+    return spacy.load(modelo, disable=["ner"])
 
 
-def traducir_oraciones(oraciones, traductor, lote=16, max_length=256,
-                       num_beams=None):
+def etiquetar_spacy(ids, textos, nlp, batch_size=64):
     """
-    Traduce una lista de oraciones y las devuelve en el mismo orden.
+    Etiqueta las reseñas con spaCy y devuelve un DataFrame con un token por
+    fila.
 
-    Parámetros
-    ----------
-    oraciones : list[str]
-        Oraciones en inglés.
-    traductor : dict
-        Resultado de :func:`cargar_traductor`.
-    lote : int
-        Oraciones por lote. En CPU, 8-16 suele ser lo más eficiente.
-    max_length : int
-        Máximo de tokens de entrada; lo que sobrepase se trunca.
-    num_beams : int | None
-        Ancho de la búsqueda en haz. ``None`` usa el valor del modelo (4),
-        que da mejor calidad;
+    Las reseñas se procesan por lotes con ``nlp.pipe``, mucho más rápido que
+    llamar a nlp reseña por reseña. Los tokens que son solo espacios se
+    descartan.
     """
-    import torch
+    from tqdm.auto import tqdm # barra de progreso
 
-    tok, mt, dispositivo = (traductor["tok"], traductor["modelo"],
-                            traductor["dispositivo"])
-
-    # Se ordenan por longitud para que cada lote tenga oraciones de tamaño
-    # parecido (menos relleno = menos cómputo) y luego se restaura el orden.
-    orden = sorted(range(len(oraciones)), key=lambda i: len(oraciones[i]))
-    traducidas = [""] * len(oraciones)
-
-    opciones = {} if num_beams is None else {"num_beams": num_beams}
-    for inicio in range(0, len(orden), lote):
-        indices = orden[inicio:inicio + lote]
-        entrada = tok([oraciones[i] for i in indices], return_tensors="pt",
-                      padding=True, truncation=True,
-                      max_length=max_length).to(dispositivo)
-        with torch.no_grad():
-            generado = mt.generate(**entrada, **opciones)
-        salida = tok.batch_decode(generado, skip_special_tokens=True)
-        for i, texto in zip(indices, salida):
-            traducidas[i] = texto
-    return traducidas
+    ids, textos = list(ids), list(textos)
+    filas = []
+    docs = nlp.pipe(textos, batch_size=batch_size)
+    for id_resena, doc in tqdm(zip(ids, docs), total=len(ids), unit="reseña"):
+        for n_oracion, oracion in enumerate(doc.sents):
+            for token in oracion:
+                if token.is_space:
+                    continue
+                filas.append({"id": id_resena, "oracion": n_oracion,
+                              "token": token.text, "lema": token.lemma_,
+                              "upos_spacy": token.pos_,
+                              "tag_spacy": token.tag_,
+                              "morf": str(token.morph)})
+    return pd.DataFrame(filas)
 
 
-def traducir_resenas(textos, traductor, **opciones):
+def eagles_a_upos(tag):
     """
-    Traduce una lista de reseñas completas.
+    Convierte una etiqueta EAGLES (corpus cess_esp) a Universal POS.
 
-    Junta las oraciones de todas las reseñas para traducirlas en lotes
-    compartidos y después las reagrupa por reseña. Devuelve una lista de
-    textos en español, uno por reseña.
+    En EAGLES la primera letra indica la categoría (n sustantivo, v
+    verbo, a adjetivo etc) y las siguientes, rasgos como género, número o
+    persona: ncms000 es un sustantivo común masculino singular
     """
-    oraciones, pertenencia = [], []
-    for n, texto in enumerate(textos):
-        partes = dividir_oraciones(texto)
-        oraciones.extend(partes)
-        pertenencia.extend([n] * len(partes))
+    t = tag.lower()
+    if t.startswith("np"):
+        return "PROPN"
+    if t.startswith("cs"):
+        return "SCONJ"
+    if t.startswith(("va", "vs")):
+        return "AUX"
+    mapa = {"a": "ADJ", "c": "CCONJ", "d": "DET", "f": "PUNCT", "i": "INTJ",
+            "n": "NOUN", "p": "PRON", "r": "ADV", "s": "ADP", "v": "VERB",
+            "z": "NUM", "w": "NUM"}
+    return mapa.get(t[:1], "X")
 
-    traducidas = traducir_oraciones(oraciones, traductor, **opciones)
 
-    por_resena = [[] for _ in textos]
-    for n, oracion in zip(pertenencia, traducidas):
-        por_resena[n].append(oracion)
-    return [" ".join(partes) for partes in por_resena]
-
-
-def traducir_corpus(df, traductor, ruta_parcial, col_id="id",
-                    col_texto="texto_en", resenas_por_bloque=20, **opciones):
+def oraciones_cess_upos():
     """
-    Cada ``resenas_por_bloque`` reseñas se agregan al CSV ``ruta_parcial``
-    (columnas ``col_id`` y ``texto_es``). Si el archivo ya existe, se omiten
-    las reseñas que ya contiene, de modo que el proceso puede detenerse
-    (interrumpir el kernel, apagar el equipo) y reanudarse sin perder trabajo.
+    Devuelve las oraciones de cess_esp como listas de (palabra, UPOS).
 
-    Devuelve un DataFrame con ``col_id`` y ``texto_es`` para todo el corpus.
+    Las palabras se pasan a minúsculas para que el etiquetador no distinga
+    "Película" de "película"
     """
-    from tqdm.auto import tqdm
+    from nltk.corpus import cess_esp
 
-    ruta_parcial = Path(ruta_parcial)
-    hechas = set()
-    if ruta_parcial.exists():
-        hechas = set(pd.read_csv(ruta_parcial)[col_id])
-        print(f"Reanudando: {len(hechas)} reseñas ya traducidas en "
-              f"{ruta_parcial.name}")
-
-    pendientes = df[~df[col_id].isin(hechas)]
-    inicio = time.time()
-    with tqdm(total=len(df), initial=len(hechas), unit="reseña") as barra:
-        for i in range(0, len(pendientes), resenas_por_bloque):
-            bloque = pendientes.iloc[i:i + resenas_por_bloque]
-            textos_es = traducir_resenas(bloque[col_texto].tolist(),
-                                         traductor, **opciones)
-            pd.DataFrame({col_id: bloque[col_id].values,
-                          "texto_es": textos_es}).to_csv(
-                ruta_parcial, mode="a", index=False,
-                header=not ruta_parcial.exists(), encoding="utf-8")
-            barra.update(len(bloque))
-
-    if len(pendientes):
-        minutos = (time.time() - inicio) / 60
-        print(f"{len(pendientes)} reseñas traducidas en {minutos:.1f} min")
-    return pd.read_csv(ruta_parcial)
+    asegurar_recursos_nltk(("corpora/cess_esp",))
+    return [[(w.lower(), eagles_a_upos(t)) for w, t in oracion if w != "*0*"]
+            for oracion in cess_esp.tagged_sents()]
 
 
-# ---------------------------------------------------------------------------
-# Etapa 2 · Limpieza
-# ---------------------------------------------------------------------------
-
-# Palabras funcionales muy frecuentes de cada idioma. Sirven para detectar
-# traducciones fallidas: un texto en español casi no contiene las inglesas.
-PALABRAS_EN = set("the and is of to it this that was with but for you are "
-                  "have not be movie film".split())
-PALABRAS_ES = set("el la de que y en los las un una es por con no se lo "
-                  "película".split())
-
-# Puntos de corte de la valoración (sección 5.2 del enunciado).
-VALORACIONES = ["negativa", "intermedia", "positiva"]
-
-
-def limpiar_texto(texto):
+def entrenar_etiquetadores(oraciones, proporcion_entreno=0.9):
     """
-    Normaliza un texto sin alterar su contenido lingüístico.
+    Entrena los etiquetadores de n-gramas de NLTK
 
-    * Convierte entidades HTML (``&amp;`` -> ``&``) y elimina etiquetas HTML
-      (``<br />``).
-    * Elimina secuencias de 4 o más símbolos sueltos separados por espacios
-      (``* * * * *``). El traductor las genera a veces al encontrar
-      calificaciones con asteriscos (``*****``) y llega a repetir el símbolo
-      cientos de veces; no forman parte de la reseña original.
-    * Colapsa espacios repetidos y saltos de línea.
+    * El 90 % de las oraciones se usa para entrenar y el 10 % final
+      para test
+    * unigrama: asigna a cada palabra su etiqueta más frecuente en el
+      entrenamiento; si no la conoce, recurre a DefaultTagger(NOUN)
+    * bigrama: considera también la etiqueta de la palabra anterior; si
+      ese contexto no se vio en el entrenamiento, recurre al unigrama
 
-    No convierte a minúsculas ni quita tildes o puntuación: spaCy los
-    necesita para etiquetar correctamente.
+    Devuelve un diccionario con los etiquetadores, su exactitud sobre la
+    prueba y el vocabulario de entrenamiento.
     """
-    if not isinstance(texto, str):
-        return ""
-    texto = html.unescape(texto)
-    texto = re.sub(r"<[^>]+>", " ", texto)
-    texto = re.sub(r"(?<!\S)[^\w\s](?:\s+[^\w\s]){3,}(?!\S)", " ", texto)
-    texto = re.sub(r"\s+", " ", texto)
-    return texto.strip()
+    from nltk.tag import BigramTagger, DefaultTagger, UnigramTagger
+
+    corte = int(len(oraciones) * proporcion_entreno)
+    entreno, prueba = oraciones[:corte], oraciones[corte:]
+
+    defecto = DefaultTagger("NOUN")
+    unigrama = UnigramTagger(entreno, backoff=defecto)
+    bigrama = BigramTagger(entreno, backoff=unigrama)
+
+    return {
+        "unigrama": unigrama,
+        "bigrama": bigrama,
+        "exactitud": {"Por defecto (todo NOUN)": defecto.accuracy(prueba),
+                      "Unigrama": unigrama.accuracy(prueba),
+                      "Bigrama con respaldo": bigrama.accuracy(prueba)},
+        "vocabulario": {w for oracion in entreno for w, _ in oracion},
+        "n_entreno": len(entreno),
+        "n_prueba": len(prueba),
+    }
 
 
-def proporcion_ingles(texto):
+def etiquetar_nltk(tokens, etiquetador):
     """
-    Proporción de palabras funcionales inglesas sobre el total de palabras
-    funcionales (inglesas + españolas) encontradas en el texto.
+    Etiqueta con NLTK los MISMOS tokens que produjo spaCy.
 
-    Vale cerca de 0 en un texto bien traducido y cerca de 1 en uno que quedó
-    en inglés. Los títulos de películas sin traducir ("The Land Before Time")
-    solo la suben ligeramente.
+    Usar la tokenización de spaCy garantiza que ambas herramientas etiqueten
+    exactamente las mismas unidades
+
     """
-    palabras = re.findall(r"[a-záéíóúüñ]+", str(texto).lower())
-    en = sum(p in PALABRAS_EN for p in palabras)
-    es = sum(p in PALABRAS_ES for p in palabras)
-    return en / (en + es) if en + es else 1.0
+    from itertools import groupby
 
+    palabras = tokens["token"].str.lower().tolist()
+    claves = zip(tokens["id"], tokens["oracion"])
 
-def asignar_valoracion(calificacion):
-    """
-    Agrupa la calificación de 1 a 10 en tres valoraciones:
-    negativa (1-4), intermedia (5-6) y positiva (7-10).
-    """
-    return pd.cut(calificacion, bins=[0, 4, 6, 10], labels=VALORACIONES)
+    oraciones, inicio = [], 0
+    for _, grupo in groupby(claves):
+        largo = sum(1 for _ in grupo)
+        oraciones.append(palabras[inicio:inicio + largo])
+        inicio += largo
 
-
-def limpiar_corpus(df, col_en="texto_en", col_es="texto_es",
-                   umbral_ingles=0.5):
-    """
-    Aplica la limpieza de la etapa 2 y devuelve ``(df_limpio, bitacora)``.
-
-    Pasos, en orden:
-
-    1. Normalización de ``col_en`` y ``col_es`` con :func:`limpiar_texto`.
-    2. Eliminación de reseñas cuyo texto en español quedó vacío.
-    3. Eliminación de duplicados: mismo texto en español, o misma película
-       reseñada dos veces por el mismo usuario.
-    4. Eliminación de traducciones fallidas: textos cuya
-       :func:`proporcion_ingles` supera ``umbral_ingles`` (quedaron en
-       inglés). Las traducciones con errores parciales NO se eliminan: el
-       enunciado pide analizarlas tal como las produce el modelo.
-    5. Columnas nuevas: ``n_palabras_es`` y ``valoracion``.
-
-    ``bitacora`` es una tabla con las reseñas eliminadas en cada paso, para
-    documentar las decisiones de limpieza en el README.
-    """
-    df = df.copy()
-    bitacora = []
-
-    def registrar(paso, mascara_eliminar):
-        nonlocal df
-        bitacora.append({"paso": paso,
-                         "eliminadas": int(mascara_eliminar.sum()),
-                         "ids": df.loc[mascara_eliminar, "id"].tolist()})
-        df = df[~mascara_eliminar]
-
-    df[col_en] = df[col_en].map(limpiar_texto)
-    df[col_es] = df[col_es].map(limpiar_texto)
-
-    registrar("Texto en español vacío", df[col_es].str.len() == 0)
-    registrar("Texto en español duplicado", df.duplicated(col_es))
-    registrar("Misma película y usuario",
-              df.duplicated(["movie_id", "user_id"]))
-    registrar("Traducción fallida (quedó en inglés)",
-              df[col_es].map(proporcion_ingles) > umbral_ingles)
-
-    df["n_palabras_es"] = df[col_es].str.split().str.len()
-    df["valoracion"] = asignar_valoracion(df["calificacion"])
-
-    bitacora = pd.DataFrame(bitacora)
-    return df.reset_index(drop=True), bitacora
+    return [etiqueta for oracion in etiquetador.tag_sents(oraciones)
+            for _, etiqueta in oracion]
