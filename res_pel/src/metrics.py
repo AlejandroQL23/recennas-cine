@@ -39,7 +39,7 @@ def cargar_tokens(ruta):
 
 def sin_puntuacion(tokens, col_upos="upos_spacy"):
     """
-    tokens que no son puntuación ni símbolos
+    r"\w" = tokens que no son puntuación ni símbolos
     """
     es_palabra = tokens["token"].astype(str).str.contains(r"\w", regex=True)
     return tokens[~tokens[col_upos].isin(PUNTUACION) & es_palabra]
@@ -69,9 +69,9 @@ def metricas_por_resena(tokens, tamano_ttr=50):
     * densidad_lexica: (NOUN + VERB + ADJ + ADV) / tokens, en %.
     * ratio_verbos_sustantivos: VERB / NOUN (alto = estilo narrativo,
       bajo = descriptivo). NaN si la reseña no tiene sustantivos.
-    * idx_verbos, ``idx_adjetivos``: VERB y ADJ por cada 100 tokens.
-    * idx_negacion: palabras de :data:`NEGACIONES` por cada 100 tokens.
-    * idx_pron_1/2/3: pronombres (PRON) con ``Person=1/2/3`` por cada
+    * idx_verbos, idx_adjetivos: VERB y ADJ por cada 100 tokens.
+    * idx_negacion: palabras de :NEGACIONES por cada 100 tokens.
+    * idx_pron_1/2/3: pronombres (PRON) con Person=1/2/3 por cada
       100 tokens.
     * ttr: ver :func:ttr_bloque.
     * long_oracion: tokens por oración
@@ -123,50 +123,26 @@ def resumen_por_grupo(df, col_grupo, metricas=None):
 
 def comparar_grupos(df, metrica, col_grupo, grupo_a, grupo_b):
     """
-    Compara una métrica entre dos grupos de reseñas.
+    Compara una métrica entre dos grupos de reseñas: media, mediana y número
+    de reseñas de cada grupo, y la diferencia entre ambos (en unidades de la
+    métrica y en % respecto al grupo B).
     """
-    from scipy.stats import mannwhitneyu
-
     a = df.loc[df[col_grupo] == grupo_a, metrica].dropna()
     b = df.loc[df[col_grupo] == grupo_b, metrica].dropna()
-    u, p = mannwhitneyu(a, b, alternative="two-sided")
-    r = 2 * u / (len(a) * len(b)) - 1
     return {
         "métrica": NOMBRES_METRICAS.get(metrica, metrica),
         "grupo A": grupo_a, "media A": a.mean(), "mediana A": a.median(), "n A": len(a),
         "grupo B": grupo_b, "media B": b.mean(), "mediana B": b.median(), "n B": len(b),
         "diferencia (A − B)": a.mean() - b.mean(),
-        "p (Mann-Whitney)": p,
-        "efecto r": r,
-        "tamaño del efecto": interpretar_efecto(r),
+        "diferencia (%)": (a.mean() - b.mean()) / b.mean() * 100,
     }
 
 
-def interpretar_efecto(r):
-    """Traduce el tamaño del efecto r a palabras."""
-    r = abs(r)
-    if r < 0.1:
-        return "despreciable"
-    if r < 0.3:
-        return "pequeño"
-    if r < 0.5:
-        return "mediano"
-    return "grande"
-
-
-def tendencia(df, metrica, col_x="anio"):
+def mostrar(resultados):
     """
-    Correlación de Spearman entre una métrica y el año de la reseña.
-
-    Indica si la métrica tiende a subir (rho > 0) o bajar (rho < 0) con los
-    años
+    Convierte el resultado de comparar_grupos (uno o una lista) en una tabla.
     """
-    from scipy.stats import spearmanr
-
-    datos = df[[col_x, metrica]].dropna()
-    rho, p = spearmanr(datos[col_x], datos[metrica])
-    return {"métrica": NOMBRES_METRICAS.get(metrica, metrica),
-            "rho de Spearman": rho, "p": p, "n": len(datos)}
+    return pd.DataFrame(resultados if isinstance(resultados, list) else [resultados])
 
 
 # ---------------------------------------------------------------------------

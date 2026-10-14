@@ -1,7 +1,7 @@
 """
 POS Tagging con spaCy y NLTK.
 
-* spaCy (``es_core_news_md``): etiquetado del corpus por lotes, con lema.
+* spaCy (es_core_news_md): etiquetado del corpus por lotes, con lema.
 * NLTK: etiquetador de n-gramas entrenado con el corpus cess_esp.
 
 """
@@ -19,7 +19,7 @@ MODELO_SPACY = "es_core_news_md"
 def cargar_spacy(modelo=MODELO_SPACY):
     """
     Carga el modelo de spaCy para español sin el reconocimiento de entidades
-    (``ner``), que no se usa y así el etiquetado es más rápido.
+    (ner), que no se usa y así el etiquetado es más rápido.
     """
     import spacy
 
@@ -31,7 +31,7 @@ def etiquetar_spacy(ids, textos, nlp, batch_size=64):
     Etiqueta las reseñas con spaCy y devuelve un DataFrame con un token por
     fila.
 
-    Las reseñas se procesan por lotes con ``nlp.pipe``, mucho más rápido que
+    Las reseñas se procesan por lotes con nlp.pipe, mucho más rápido que
     llamar a nlp reseña por reseña. Los tokens que son solo espacios se
     descartan.
     """
@@ -82,7 +82,8 @@ def oraciones_cess_upos():
     "Película" de "película"
     """
     from nltk.corpus import cess_esp
-
+    # *0* palabras que se omiten, ya que si no se hace "ensucia" el resultado
+    #“Llegamos tarde” → hay un sujeto implícito (“nosotros”) que no se pronuncia
     asegurar_recursos_nltk(("corpora/cess_esp",))
     return [[(w.lower(), eagles_a_upos(t)) for w, t in oracion if w != "*0*"]
             for oracion in cess_esp.tagged_sents()]
@@ -116,7 +117,7 @@ def entrenar_etiquetadores(oraciones, proporcion_entreno=0.9):
         "bigrama": bigrama,
         "exactitud": {"Por defecto (todo NOUN)": defecto.accuracy(prueba),
                       "Unigrama": unigrama.accuracy(prueba),
-                      "Bigrama con respaldo": bigrama.accuracy(prueba)},
+                      "Bigrama": bigrama.accuracy(prueba)},
         "vocabulario": {w for oracion in entreno for w, _ in oracion},
         "n_entreno": len(entreno),
         "n_prueba": len(prueba),

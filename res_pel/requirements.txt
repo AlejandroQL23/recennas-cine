@@ -13,5 +13,7 @@ ipykernel
 spacy
 matplotlib
 
-# Etapa 4 · Análisis (notebook 03): pruebas estadísticas
-scipy
+# Etapa 5 · Visualización (notebook 04): dashboard interactivo
+plotly
+# App web del dashboard (python dashboard_app.py)
+dash
