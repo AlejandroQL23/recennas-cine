@@ -4,8 +4,6 @@ Funciones de gráficos
 * guardar_figura: guarda un gráfico de matplotlib como PNG en outputs/figures.
 * adjetivos_caracteristicos: adjetivos que más distinguen a un grupo de otro.
 * calcular_filtro: datos del dashboard para un género y una valoración.
-* crear_dashboard: dashboard interactivo de Plotly con filtros por género y
-  valoración, exportado como HTML.
 
 La versión con Plotly Dash (app web con servidor) está en dashboard_app.py.
 """
