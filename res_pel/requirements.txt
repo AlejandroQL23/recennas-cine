@@ -17,3 +17,6 @@ matplotlib
 plotly
 # App web del dashboard (python dashboard_app.py)
 dash
+
+# Proyecto 2 · Migración a MongoDB (notebook 05)
+pymongo
