@@ -20,3 +20,8 @@ dash
 
 # Proyecto 2 · Migración a MongoDB (notebook 05)
 pymongo
+
+# Proyecto 2 · Web scraping de SensaCine (notebook 06)
+requests
+beautifulsoup4
+lxml
