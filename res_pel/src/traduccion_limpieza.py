@@ -281,8 +281,10 @@ def limpiar_corpus(df, col_en="texto_en", col_es="texto_es",
 
     registrar("Texto en español vacío", df[col_es].str.len() == 0)
     registrar("Texto en español duplicado", df.duplicated(col_es))
+    # Solo cuenta como duplicada si se conoce el usuario: las reseñas de
+    # scraping no guardan el autor (user_id vacío) y no deben compararse entre sí.
     registrar("Misma película y usuario",
-              df.duplicated(["movie_id", "user_id"]))
+              df["user_id"].notna() & df.duplicated(["movie_id", "user_id"]))
     registrar("Traducción fallida (quedó en inglés)",
               df[col_es].map(proporcion_ingles) > umbral_ingles)
 

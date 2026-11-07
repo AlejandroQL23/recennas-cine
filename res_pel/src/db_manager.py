@@ -178,7 +178,7 @@ def documentos_proyecto1(resenas, pos, metricas, w2v, beto):
             "texto_es": fila.texto_es,
             "texto_en": fila.texto_en,
             "origen_texto": "traducido",
-            "titulo_obra": None,          # el dataset de Kaggle no trae el título
+            "titulo_obra": valor(getattr(fila, "titulo_obra", None)),
             "tipo_obra": "pelicula",
             "generos": None,              # solo se conserva el género asignado
             "genero_principal": genero,
