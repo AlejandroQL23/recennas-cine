@@ -221,3 +221,4 @@ __marimo__/
 
 # Proyecto: el dataset original de Kaggle no se sube al repositorio
 **/data/raw/
+**/data/results/
