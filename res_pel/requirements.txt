@@ -25,3 +25,9 @@ pymongo
 requests
 beautifulsoup4
 lxml
+
+# Proyecto 2 · Bag of Words, TF-IDF y Word2Vec (notebook 07)
+gensim
+scikit-learn
+scipy
+seaborn
