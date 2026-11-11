@@ -221,3 +221,6 @@ __marimo__/
 
 # Proyecto: el dataset original de Kaggle no se sube al repositorio
 **/data/raw/
+**/data/results/
+# Modelos Word2Vec (se regeneran con el notebook 07)
+**/data/models/
