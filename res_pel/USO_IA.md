@@ -64,3 +64,15 @@ Pedirle que explicara línea por línea el código generado, como se hizo con la
 | **Traducción** | El plan original traducía en Google Colab. Se cambió para que la traducción quedara dentro del mismo pipeline local, sin depender de herramientas externas. |
 | **Documentación** | Todo el código generado debe estar documentado en español, con comentarios y celdas explicativas en los notebooks. |
 | **Imports** | Se añadieron imports en ciertos bloques de código, ya que al ejecutarlos generaban errores. |
+
+
+
+### Segunda parte del proyecto
+
+Durante la segunda fase del proyecto, se utilizó nuevamente la IA como herramienta de apoyo para desarrollar los componentes relacionados con MongoDB y la extracción de información de sitios web.
+
+| Aspecto | Uso de IA |
+|---|---|
+| **Estructura e índices en MongoDB** | Se solicitó ayuda para diseñar y crear los índices y la estructura de la base de datos en MongoDB, siguiendo los requerimientos establecidos en el enunciado del proyecto. |
+| **Web Scraping de SensaCine** | Se proporcionó a la IA el archivo de instrucciones facilitado por el profesor para solicitar ayuda en la creación de los componentes necesarios para realizar el scraping del sitio web SensaCine. Se utilizó dicho documento como referencia para orientar el desarrollo y cumplir con los requisitos solicitados. |
+
