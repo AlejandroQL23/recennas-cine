@@ -272,7 +272,7 @@ class SensaCineScraper:
             })
         return peliculas
 
-    # -- críticas de una película --------------------------------------------
+    # -- críticas de una película ACA SE TOMA LAS ETIQUETAS Y SE EXTRAE LA INFO --------------------------
 
     def parsear_criticas(self, soup, pelicula, genero, url):
         """Reseñas válidas de una página de críticas, ya en el formato del CSV."""

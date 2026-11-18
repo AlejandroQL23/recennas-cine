@@ -221,7 +221,7 @@ def migrar(uri=MONGO_URI, nombre_bd=NOMBRE_BD, nombre_coleccion=NOMBRE_COLECCION
     documentos = list(documentos_proyecto1(resenas, pos, metricas, w2v, beto))
 
     bd = conectar(uri, nombre_bd)
-    bd.drop_collection(nombre_coleccion)
+    bd.drop_collection(nombre_coleccion) # borra todo el contenido
     coleccion = bd[nombre_coleccion]
     for inicio in range(0, len(documentos), lote):
         coleccion.insert_many(documentos[inicio:inicio + lote], ordered=False)

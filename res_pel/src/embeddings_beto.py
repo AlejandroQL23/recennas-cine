@@ -129,7 +129,7 @@ def similitud_entre_sentidos(oraciones_por_sentido, palabra, beto):
 def embeddings_resenas(textos, beto, lote=16, max_tokens=512, ruta_parcial=None, cada=20,
                        progreso=True):
     """
-    Embedding [CLS] de cada reseña (como la sección 3.3 del laboratorio). Las
+    Embedding [CLS] de cada reseña. Las
     reseñas se ordenan por longitud para que cada lote tenga textos de tamaño
     parecido y se procese más rápido.
     """

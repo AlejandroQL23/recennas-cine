@@ -73,6 +73,18 @@ Durante la segunda fase del proyecto, se utilizó nuevamente la IA como herramie
 
 | Aspecto | Uso de IA |
 |---|---|
-| **Estructura e índices en MongoDB** | Se solicitó ayuda para diseñar y crear los índices y la estructura de la base de datos en MongoDB, siguiendo los requerimientos establecidos en el enunciado del proyecto. |
-| **Web Scraping de SensaCine** | Se proporcionó a la IA el archivo de instrucciones facilitado por el profesor para solicitar ayuda en la creación de los componentes necesarios para realizar el scraping del sitio web SensaCine. Se utilizó dicho documento como referencia para orientar el desarrollo y cumplir con los requisitos solicitados. |
+| **Estructura e índices en MongoDB** | Se solicitó asistencia para el diseño y la creación de la estructura de la base de datos en MongoDB, así como para la definición de los índices necesarios, tomando como referencia los requerimientos establecidos en el enunciado del proyecto. |
+| **Web Scraping de SensaCine** | Se proporcionó a la IA el documento de instrucciones facilitado por el profesor, con el objetivo de obtener orientación en la implementación de los componentes necesarios para realizar el scraping del sitio web SensaCine. Dicho documento se utilizó como referencia para orientar el desarrollo y garantizar el cumplimiento de los requisitos establecidos. |
+| **Mejoras en la interfaz gráfica** | Se utilizó la IA como apoyo para realizar mejoras en la interfaz gráfica de la aplicación, buscando optimizar su presentación visual, organización y experiencia de usuario. |
+| **Identificación de títulos de películas** | Se solicitó ayuda para identificar y determinar los títulos correspondientes a las películas asociadas a las 15 reseñas obtenidas previamente, con el propósito de facilitar su correcta identificación y procesamiento dentro del proyecto. |
+| **Gráficos utilizando Word2Vec (W2V)** | Se solicitó asistencia en la elaboración y mejora de los gráficos relacionados con los resultados obtenidos mediante Word2Vec (W2V), con el objetivo de facilitar su visualización e interpretación. |
+| **Búsquedas semánticas** | Se utilizó la IA como apoyo para el desarrollo y la comprensión de las búsquedas semánticas implementadas en el proyecto, facilitando el análisis de similitud entre textos y la recuperación de información relevante a partir del contenido de las reseñas. |
+| **Documentación de archivos Python (.py) y Jupyter Notebook (.ipynb)** | Se solicitó ayuda para documentar los archivos `.py` y `.ipynb` del proyecto, incluyendo la descripción de su propósito, funcionalidades, procesos implementados y principales componentes, con el fin de mejorar la claridad, comprensión y mantenimiento del código. |
+| **Adaptación de archivos guía a funciones Python** | Se utilizó la IA como apoyo para trasladar y adaptar el contenido de los archivos guía proporcionados por el profesor a funciones implementadas en archivos `.py`, facilitando su reutilización, organización e integración dentro del proyecto. |
+
+
+
+
+
+
 

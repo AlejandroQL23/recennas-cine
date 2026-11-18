@@ -113,7 +113,7 @@ def comparar_clustering(representaciones, df, semilla):
         for nombre, X in reducidas.items():
             grupos = KMeans(n_clusters=k, random_state=semilla, n_init=10).fit_predict(X[indices])
             filas.append({"categoria": tarea, "representacion": nombre, "k": k,
-                          "silhouette": silhouette_score(X[indices], grupos, sample_size=5000,
+                          "silhouette": silhouette_score(X[indices], grupos, sample_size=16991,
                                                          random_state=semilla)})
     return pd.DataFrame(filas)
 

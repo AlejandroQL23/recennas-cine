@@ -101,6 +101,14 @@ pestana_2 = html.Div(style={"paddingTop": "20px"}, children=[
             dcc.Graph(figure=fig_clustering)]),
     ]),
     html.Div(style=TARJETA, children=[
+        html.H3("Interpretación", style=TITULO_SECCION),
+        html.P("La representación más compleja no siempre es la mejor: TF-IDF supera a BETO "
+               "en género porque el tema depende de palabras clave, mientras que BETO destaca "
+               "detectando el estilo de las reseñas traducidas; los Silhouette bajos muestran "
+               "que ninguna representación forma grupos naturales sin supervisión.",
+               style={"color": AZUL_OSCURO, "fontSize": "16px", "margin": "0"}),
+    ]),
+    html.Div(style=TARJETA, children=[
         html.H3("Visualización t-SNE", style=TITULO_SECCION),
         html.Div(style={"display": "flex", "gap": "20px", "width": "600px"}, children=[
             html.Div(style={"flex": 1}, children=[
